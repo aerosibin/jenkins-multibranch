@@ -1,5 +1,6 @@
 import unittest
 from app import greet
+from app import login
 
 
 class TestApp(unittest.TestCase):
