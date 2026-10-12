@@ -6,48 +6,43 @@ pipeline {
         timestamps()
         disableConcurrentBuilds()
         skipDefaultCheckout(true)
-        buildDiscarder(logRotator(
-            numToKeepStr: '20'
-        ))
+        buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
     environment {
         APP_NAME = 'jenkins-multibranch-demo'
-        PYTHONUNBUFFERED = '1'
+        PYTHON = 'python'
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
-
-                script {
-                    echo "Building branch: ${env.BRANCH_NAME}"
-                    echo "Build number: ${env.BUILD_NUMBER}"
-                }
+                echo "Building branch: ${env.BRANCH_NAME}"
+                echo "Build number: ${env.BUILD_NUMBER}"
             }
         }
 
         stage('Environment Setup') {
             steps {
-                sh '''
-                    python3 --version
-                    python3 -m venv .venv
-                    .venv/bin/python -m pip --version
+                bat '''
+                    python --version
+                    python -m venv .venv
+                    .venv\\Scripts\\python.exe --version
                 '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh '''
-                    mkdir -p reports
+                bat '''
+                    if not exist reports mkdir reports
 
-                    .venv/bin/python -m unittest \
-                        discover \
-                        -s . \
-                        -p "test_*.py" \
-                        -v 2>&1 | tee reports/test-results.txt
+                    .venv\\Scripts\\python.exe -m unittest discover -s . -p "test_*.py" -v > reports\\test-results.txt 2>&1
+
+                    set TEST_EXIT_CODE=%ERRORLEVEL%
+                    type reports\\test-results.txt
+                    exit /b %TEST_EXIT_CODE%
                 '''
             }
             post {
@@ -62,14 +57,12 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh '''
-                    mkdir -p dist
+                bat '''
+                    if not exist dist mkdir dist
 
-                    tar --exclude=.git \
-                        --exclude=.venv \
-                        --exclude=dist \
-                        -czf "dist/${APP_NAME}-${BUILD_NUMBER}.tar.gz" \
-                        app.py test_app.py requirements.txt
+                    tar --exclude=.git --exclude=.venv --exclude=dist -czf "dist/%APP_NAME%-%BUILD_NUMBER%.tar.gz" app.py test_app.py requirements.txt
+
+                    if errorlevel 1 exit /b 1
                 '''
 
                 archiveArtifacts(
@@ -81,13 +74,13 @@ pipeline {
 
         stage('Feature Branch Validation') {
             when {
-                expression {
-                    env.BRANCH_NAME != 'main'
+                not {
+                    branch 'main'
                 }
             }
             steps {
                 echo "Feature branch ${env.BRANCH_NAME} passed CI validation."
-                echo "Deployment is skipped for non-main branches."
+                echo 'Production deployment skipped.'
             }
         }
 
@@ -96,9 +89,8 @@ pipeline {
                 branch 'main'
             }
             steps {
-                echo 'Main branch validated.'
-                echo 'Production deployment stage is ready.'
-                echo 'Configure your deployment command here.'
+                echo 'Main branch passed CI validation.'
+                echo 'Add your actual production deployment command here.'
             }
         }
     }
@@ -107,11 +99,9 @@ pipeline {
         success {
             echo "SUCCESS: ${env.BRANCH_NAME}"
         }
-
         failure {
             echo "FAILURE: ${env.BRANCH_NAME}"
         }
-
         always {
             echo "Pipeline finished for ${env.BRANCH_NAME}"
         }
