@@ -5,6 +5,14 @@ def greet(name: str) -> str:
 
     return f"Hello, {name.strip()}!"
 
-
+def login(username: str, password: str) -> bool:
+    """A simple mock login function."""
+    if not username or not password:
+        return False
+    # Hardcoded credentials for demonstration purposes
+    if username == "admin" and password == "secret123":
+        return True
+    return False
+    
 if __name__ == "__main__":
     print(greet("Jenkins"))
